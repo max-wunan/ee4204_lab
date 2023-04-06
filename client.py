@@ -18,11 +18,11 @@ def main():
     # Initialized a client socket
     client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     host = args.ip
-    port = 4204
+    port = 5000
     addr = (host, port)
-    ser_addr = (host, 4204)
-    print("Starting up on {} on port number {}".format(host, port))
-    client.bind(addr)
+    # ser_addr = (host, 4204)
+    # print("Starting up on {} on port number {}".format(host, port))
+    # client.bind(addr)
 
     # Read from the large file chunks by chunks and store in a list
     data_units = []
@@ -33,13 +33,29 @@ def main():
                 break
             data_units.append(data)
         f.close()
+    print("Finished reading from file.")
 
     # Initialize batch size and send the data
     batch_size = 1
     curr_ind = 0
     initial_time = time.time()
     while curr_ind <= len(data_units):
-        send_data(args, client, ser_addr, data_units, batch_size, curr_ind)
+        #send_data(args, client, addr, data_units, batch_size, curr_ind)
+        i = 0
+        while i < batch_size:
+            # When all the data has been sent, pad the current batch with "EndOfMessage" string
+            if curr_ind + i >= len(data_units):
+                msg = "EndOfMessage".encode("utf-8")
+            else:  
+                msg = data_units[curr_ind+i].encode("utf-8")
+            client.sendto(msg, addr)
+            i += 1
+        # Wait for ACK after sending the batch of DU
+        print("Sent a batch of {} DUs to the server".format(batch_size))
+        data, addr = client.recvfrom(1024)
+        data = data.decode("utf-8")
+        if data == "ACK":
+            print("Received ACK from server.")
         curr_ind += batch_size
         batch_size += 1
     print("Message transmitting completed.")
@@ -49,25 +65,6 @@ def main():
     throughput = data_size / float(transfer_time)
     print('Sent {} bytes in {:.2f} seconds ({:.2f} Mbps)'.format(data_size, transfer_time, throughput / 1e6))
     exit(0)
-
-# Function that send data in chunks to the server
-def send_data(args, client, addr, data_units, batch_size, curr_ind):
-    i = 0
-    while i < batch_size and curr_ind + i < len(data_units):
-        # When all the data has been sent, pad the current batch with "EndOfMessage" string
-        if curr_ind + i >= len(data_units):
-            msg = "EndOfMessage".encode("utf-8")
-        else:  
-            msg = data_units[curr_ind+i].encode("utf-8")
-        client.sendto(msg, addr)
-        i += 1
-    # Wait for ACK after sending the batch of DU
-    print("Sent a batch of {} DUs to the server".format(batch_size))
-    data, addr = client.recvfrom(1024)
-    data = data.decode("utf-8")
-    if data == "ACK":
-        print("Received ACK from server.")
-        return
 
 
 if __name__ == "__main__":
